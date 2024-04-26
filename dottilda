@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(dirname "$0")"
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/dottilda"
+virtualenv_dir="$cache_dir/venv"
+
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+export PIP_REQUIRE_VIRTUALENV=1
+export PYTHONPATH="$script_dir/src:${PYTHONPATH:-}"
+export PYTHONPYCACHEPREFIX="$cache_dir/pycache"
+
+checksum_path="$cache_dir/requirements.sha256"
+
+frozen_requirements_path="$script_dir/requirements.frozen.txt"
+if [ -f "$frozen_requirements_path" ]
+then
+    requirements_path="$frozen_requirements_path"
+    freeze=0
+else
+    echo "$(tput bold)$(tput setaf 3)warn:$(tput sgr0) Frozen requirements file not found, falling back to requirements.txt" >&2
+    requirements_path="$script_dir/requirements.txt"
+    freeze=1
+fi
+
+if ! [ -d "$virtualenv_dir" ] || \
+   ! [ -f "$checksum_path" ] || \
+   [ $freeze -eq 1 ] || \
+   ! (cd -- "$script_dir" && shasum -a 256 -c "$checksum_path" > /dev/null 2>&1)
+then
+    echo "$(tput bold)info:$(tput sgr0) Installing pip dependencies..."
+
+    python3 -m venv "$virtualenv_dir"
+    # shellcheck disable=SC1091
+    source "$virtualenv_dir/bin/activate"
+
+    if [ $freeze -eq 1 ]; then pip3 uninstall -y -r <(pip3 freeze) || true; fi
+    pip3 install -r "$requirements_path"
+    if [ $freeze -eq 1 ]; then pip3 freeze > "$frozen_requirements_path"; fi
+
+    shasum -a 256 "$frozen_requirements_path" > "$checksum_path"
+fi
+
+python3 -m dottilda "$@"
