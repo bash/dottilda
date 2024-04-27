@@ -40,6 +40,9 @@ then
     if [ $freeze -eq 1 ]; then pip3 freeze > "$frozen_requirements_path"; fi
 
     shasum -a 256 "$frozen_requirements_path" > "$checksum_path"
+else
+    # shellcheck disable=SC1091
+    source "$virtualenv_dir/bin/activate"
 fi
 
 python3 -m dottilda "$@"
